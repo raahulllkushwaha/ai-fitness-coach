@@ -10,6 +10,9 @@ import com.rahul.aifitness.user.mapper.UserMapper;
 import com.rahul.aifitness.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -36,6 +39,8 @@ public class UserService {
         return userMapper.toResponse(savedUser);
     }
 
+    @Cacheable(cacheNames = "users", key = "#userId")
+    @Transactional(readOnly = true)
     public UserResponse getUserById(Long userId) {
 
         log.debug("Fetching user. userId={}", userId);
@@ -46,8 +51,7 @@ public class UserService {
     private User findUserById(Long userId) {
 
         return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User with id '" + userId + "' was not found")
-                );
+                .orElseThrow(() -> new ResourceNotFoundException("User with id '" + userId + "' was not found"));
     }
 
     private void validateUniqueness(CreateUserRequest request) {
@@ -69,6 +73,10 @@ public class UserService {
     }
 
     @Transactional
+    @CachePut(
+            cacheNames = "users",
+            key = "#userId"
+    )
     public UserResponse updateUser(Long userId, UpdateUserRequest request){
         log.info("Updating user. userId={}, username={}, email={}", userId, request.username(), request.email());
         User user = findUserById(userId);
@@ -100,6 +108,10 @@ public class UserService {
     }
 
     @Transactional
+    @CacheEvict(
+            cacheNames = "users",
+            key = "#userId"
+    )
     public void deleteUser(Long userId) {
 
         log.info("Deleting user. userId={}", userId);

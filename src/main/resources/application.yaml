@@ -31,6 +31,12 @@ spring:
 
   cache:
     type: redis
+    cache-name:
+      - users
+    redis:
+      time-to-live: 10m
+      cache-null-values: false
+      use-key-prefix: true
 
   data:
     redis:
