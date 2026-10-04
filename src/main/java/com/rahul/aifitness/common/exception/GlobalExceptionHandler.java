@@ -142,41 +142,65 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
     }
 
-    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
-    public ResponseEntity<ProblemDetail> handleMalformedRequest(
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
             org.springframework.http.converter.HttpMessageNotReadableException ex,
-            HttpServletRequest request
+            org.springframework.http.HttpHeaders headers,
+            org.springframework.http.HttpStatusCode status,
+            org.springframework.web.context.request.WebRequest request
     ) {
 
-        log.warn(
-                "Malformed request body. path={}",
-                request.getRequestURI()
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                status,
+                "The request body is invalid or could not be parsed."
         );
 
-        ProblemDetail problem = createProblem(
-                HttpStatus.BAD_REQUEST,
-                "Malformed Request",
-                "The request body is invalid or could not be parsed.",
-                request,
-                "malformed-request"
+        problem.setTitle("Malformed Request");
+
+        problem.setType(
+                URI.create(
+                        "https://api.aifitness.com/problems/malformed-request"
+                )
         );
 
-        return ResponseEntity.badRequest().body(problem);
+        problem.setProperty("timestamp", nowUtc());
+        problem.setProperty("errorId", UUID.randomUUID().toString());
+
+        return handleExceptionInternal(
+                ex,
+                problem,
+                headers,
+                status,
+                request
+        );
     }
 
 
-    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ProblemDetail> handleMethodNotSupported(
+    @Override
+    protected ResponseEntity<Object> handleHttpRequestMethodNotSupported(
             org.springframework.web.HttpRequestMethodNotSupportedException ex,
-            HttpServletRequest request
+            org.springframework.http.HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
     ) {
 
-        ProblemDetail problem = createProblem(
-                HttpStatus.METHOD_NOT_ALLOWED,
-                "Method Not Allowed",
-                "The HTTP method is not supported for this resource.",
-                request,
-                "method-not-allowed"
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                status,
+                "The HTTP method is not supported for this resource."
+        );
+
+        problem.setTitle("Method Not Allowed");
+
+        problem.setType(
+                URI.create(
+                        "https://api.aifitness.com/problems/method-not-allowed"
+                )
+        );
+
+        problem.setProperty("timestamp", nowUtc());
+        problem.setProperty(
+                "errorId",
+                UUID.randomUUID().toString()
         );
 
         if (ex.getSupportedHttpMethods() != null) {
@@ -189,9 +213,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             );
         }
 
-        return ResponseEntity
-                .status(HttpStatus.METHOD_NOT_ALLOWED)
-                .body(problem);
+        return handleExceptionInternal(
+                ex,
+                problem,
+                headers,
+                status,
+                request
+        );
     }
 
 
