@@ -1,3 +1,83 @@
 spring:
+
   application:
-    name: AI Fitness Coach
+    name: ai-fitness-coach
+
+  profiles:
+    active: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:fitness_coach}
+    username: ${POSTGRES_USER:fitness_app}
+    password: ${POSTGRES_PASSWORD}
+
+    hikari:
+      pool-name: FitnessCoachHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    open-in-view: false
+
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  cache:
+    type: redis
+
+  data:
+    redis:
+      host: localhost
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      timeout: 2s
+
+  kafka:
+    bootstrap-servers: localhost:${KAFKA_PORT:9092}
+
+    producer:
+      acks: all
+      retries: 5
+
+      properties:
+        enable.idempotence: true
+
+    consumer:
+      enable-auto-commit: false
+
+      properties:
+        isolation.level: read_committed
+
+
+server:
+  port: 8080
+
+  shutdown: graceful
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - metrics
+
+  endpoint:
+    health:
+      show-details: never
+
+
+logging:
+  level:
+    root: INFO
+    com.rahul.aifitness: DEBUG
+    org.springframework.kafka: INFO

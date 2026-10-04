@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:fitness_coach}
+
+  data:
+    redis:
+      host: localhost
+      port: ${REDIS_PORT:6379}
+
+  kafka:
+    bootstrap-servers: localhost:${KAFKA_PORT:9092}
+
+logging:
+  level:
+    com.rahul.aifitness: DEBUG
