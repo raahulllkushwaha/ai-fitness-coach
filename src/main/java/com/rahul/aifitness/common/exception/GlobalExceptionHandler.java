@@ -15,6 +15,9 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.http.HttpMethod;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.access.AccessDeniedException;
+
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.BadCredentialsException;
 
 import java.net.URI;
@@ -323,6 +326,41 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         return problem;
     }
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ProblemDetail> handleAccessDenied(
+            AccessDeniedException ex,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatus(
+                HttpStatus.FORBIDDEN
+        );
+
+        problem.setTitle("Access Denied");
+        problem.setDetail(
+                "You do not have permission to access this resource"
+        );
+
+        problem.setType(
+                URI.create(
+                        "https://api.aifitness.com/problems/access-denied"
+                )
+        );
+
+        problem.setProperty(
+                "timestamp",
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+
+        problem.setProperty(
+                "path",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(problem);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ProblemDetail> handleBadCredentials(
             BadCredentialsException ex,
