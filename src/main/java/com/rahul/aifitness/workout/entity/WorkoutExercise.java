@@ -31,6 +31,10 @@ public class WorkoutExercise {
     )
     private Workout workout;
 
+    public void updateDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
+    }
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
             name = "exercise_id",
