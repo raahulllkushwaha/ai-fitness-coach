@@ -35,6 +35,18 @@ public class User {
     @Column(name = "last_name", length = 100)
     private String lastName;
 
+    @Column(name = "password_hash", length = 255)
+    private String passwordHash;
+
+    public void updatePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 30)
+    private UserRole role = UserRole.USER;
+
     @Column(
             name = "created_at",
             nullable = false,

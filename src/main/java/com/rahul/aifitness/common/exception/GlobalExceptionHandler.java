@@ -14,6 +14,8 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.http.HttpMethod;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.authentication.BadCredentialsException;
 
 import java.net.URI;
 import java.time.OffsetDateTime;
@@ -320,6 +322,37 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
 
         return problem;
+    }
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ProblemDetail> handleBadCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatus(
+                HttpStatus.UNAUTHORIZED
+        );
+
+        problem.setTitle("Authentication Failed");
+        problem.setDetail("Invalid username/email or password");
+        problem.setType(
+                URI.create(
+                        "https://api.aifitness.com/problems/authentication-failed"
+                )
+        );
+
+        problem.setProperty(
+                "timestamp",
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+
+        problem.setProperty(
+                "path",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(problem);
     }
 
     private OffsetDateTime nowUtc() {
