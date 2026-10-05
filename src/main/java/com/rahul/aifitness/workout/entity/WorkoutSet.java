@@ -61,4 +61,21 @@ public class WorkoutSet {
     protected void onCreate() {
         this.createdAt = OffsetDateTime.now(ZoneOffset.UTC);
     }
+    public void updateSet(
+            Integer setNumber,
+            Integer reps,
+            Double weight,
+            String weightUnit,
+            Integer durationSeconds,
+            Double distanceMeters,
+            Double rpe
+    ) {
+        this.setNumber = setNumber;
+        this.reps = reps;
+        this.weight = weight;
+        this.weightUnit = weightUnit;
+        this.durationSeconds = durationSeconds;
+        this.distanceMeters = distanceMeters;
+        this.rpe = rpe;
+    }
 }
