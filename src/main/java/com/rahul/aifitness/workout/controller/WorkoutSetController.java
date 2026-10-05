@@ -1,5 +1,6 @@
 package com.rahul.aifitness.workout.controller;
 
+import com.rahul.aifitness.auth.service.CurrentUserService;
 import com.rahul.aifitness.common.response.ApiResponse;
 import com.rahul.aifitness.workout.dto.request.CreateWorkoutSetRequest;
 import com.rahul.aifitness.workout.dto.request.UpdateWorkoutSetRequest;
@@ -15,20 +16,22 @@ import java.util.List;
 
 @RestController
 @RequestMapping(
-        "/api/v1/users/{userId}/workouts/{workoutId}/exercises/{workoutExerciseId}/sets"
+        "/api/v1/workouts/{workoutId}/exercises/{workoutExerciseId}/sets"
 )
 @RequiredArgsConstructor
 public class WorkoutSetController {
 
     private final WorkoutSetService workoutSetService;
+    private final CurrentUserService currentUserService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<WorkoutSetResponse>> addSetToWorkoutExercise(
-            @PathVariable Long userId,
             @PathVariable Long workoutId,
             @PathVariable Long workoutExerciseId,
             @Valid @RequestBody CreateWorkoutSetRequest request
     ) {
+        Long userId = currentUserService.getCurrentUserId();
+
         WorkoutSetResponse response =
                 workoutSetService.addSetToWorkoutExercise(
                         userId,
@@ -49,10 +52,11 @@ public class WorkoutSetController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<WorkoutSetResponse>>> getWorkoutSets(
-            @PathVariable Long userId,
             @PathVariable Long workoutId,
             @PathVariable Long workoutExerciseId
     ) {
+        Long userId = currentUserService.getCurrentUserId();
+
         List<WorkoutSetResponse> response =
                 workoutSetService.getWorkoutSets(
                         userId,
@@ -67,11 +71,12 @@ public class WorkoutSetController {
 
     @GetMapping("/{workoutSetId}")
     public ResponseEntity<ApiResponse<WorkoutSetResponse>> getWorkoutSetById(
-            @PathVariable Long userId,
             @PathVariable Long workoutId,
             @PathVariable Long workoutExerciseId,
             @PathVariable Long workoutSetId
     ) {
+        Long userId = currentUserService.getCurrentUserId();
+
         WorkoutSetResponse response =
                 workoutSetService.getWorkoutSetById(
                         userId,
@@ -87,12 +92,13 @@ public class WorkoutSetController {
 
     @PutMapping("/{workoutSetId}")
     public ResponseEntity<ApiResponse<WorkoutSetResponse>> updateWorkoutSet(
-            @PathVariable Long userId,
             @PathVariable Long workoutId,
             @PathVariable Long workoutExerciseId,
             @PathVariable Long workoutSetId,
             @Valid @RequestBody UpdateWorkoutSetRequest request
     ) {
+        Long userId = currentUserService.getCurrentUserId();
+
         WorkoutSetResponse response =
                 workoutSetService.updateWorkoutSet(
                         userId,
@@ -112,11 +118,12 @@ public class WorkoutSetController {
 
     @DeleteMapping("/{workoutSetId}")
     public ResponseEntity<Void> deleteWorkoutSet(
-            @PathVariable Long userId,
             @PathVariable Long workoutId,
             @PathVariable Long workoutExerciseId,
             @PathVariable Long workoutSetId
     ) {
+        Long userId = currentUserService.getCurrentUserId();
+
         workoutSetService.deleteWorkoutSet(
                 userId,
                 workoutId,
