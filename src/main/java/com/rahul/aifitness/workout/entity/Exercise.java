@@ -44,6 +44,14 @@ public class Exercise {
     )
     private String normalizedName;
 
+    public void updateName(
+            String name,
+            String normalizedName
+    ) {
+        this.name = name;
+        this.normalizedName = normalizedName;
+    }
+
     @Column(
             name = "created_at",
             nullable = false,

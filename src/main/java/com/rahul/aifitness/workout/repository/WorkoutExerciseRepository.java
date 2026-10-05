@@ -7,12 +7,8 @@ import java.util.List;
 
 public interface WorkoutExerciseRepository extends JpaRepository<WorkoutExercise, Long> {
 
-    List<WorkoutExercise> findByWorkoutIdOrderByDisplayOrderAsc(
-            Long workoutId
-    );
+    List<WorkoutExercise> findByWorkoutIdOrderByDisplayOrderAsc(Long workoutId);
 
-    boolean existsByWorkoutIdAndExerciseId(
-            Long workoutId,
-            Long exerciseId
-    );
+    boolean existsByWorkoutIdAndExerciseId(Long workoutId, Long exerciseId);
+    boolean existsByExerciseId(Long exerciseId);
 }
