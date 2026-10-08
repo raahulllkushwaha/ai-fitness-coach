@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface WorkoutRepository extends JpaRepository<Workout, Long> {
@@ -31,5 +32,12 @@ public interface WorkoutRepository extends JpaRepository<Workout, Long> {
     boolean existsByUserIdAndExternalId(
             Long userId,
             String externalId
+    );
+
+    Optional<Workout> findTopByUserIdOrderByStartedAtDesc(Long userId);
+
+    List<Workout> findByUserIdOrderByStartedAtDesc(
+            Long userId,
+            Pageable pageable
     );
 }

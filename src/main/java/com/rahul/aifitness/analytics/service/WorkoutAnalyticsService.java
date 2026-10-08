@@ -9,6 +9,7 @@ import com.rahul.aifitness.workout.entity.Workout;
 import com.rahul.aifitness.workout.repository.WorkoutRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.cache.annotation.Cacheable;
@@ -30,10 +31,16 @@ public class WorkoutAnalyticsService {
     private final WorkoutRepository workoutRepository;
     private final WorkoutAnalyticsRepository workoutAnalyticsRepository;
 
-    @CacheEvict(
-            cacheNames = "analyticsSummary",
-            allEntries = true
-    )
+    @Caching(evict = {
+            @CacheEvict(
+                    cacheNames = "analyticsSummary",
+                    allEntries = true
+            ),
+            @CacheEvict(
+                    cacheNames = "aiCoach",
+                    allEntries = true
+            )
+    })
     @Transactional
     public WorkoutMetrics analyzeWorkout(Long workoutId) {
 
@@ -228,10 +235,16 @@ public class WorkoutAnalyticsService {
         );
     }
 
-    @CacheEvict(
-            cacheNames = "analyticsSummary",
-            allEntries = true
-    )
+    @Caching(evict = {
+            @CacheEvict(
+                    cacheNames = "analyticsSummary",
+                    allEntries = true
+            ),
+            @CacheEvict(
+                    cacheNames = "aiCoach",
+                    allEntries = true
+            )
+    })
     @Transactional
     public void deleteAnalytics(Long workoutId) {
         workoutAnalyticsRepository.deleteByWorkoutId(workoutId);

@@ -6,6 +6,22 @@ spring:
   profiles:
     active: local
 
+  ai:
+    retry:
+      max-attempts: 4
+      backoff:
+        initial-interval: 2s
+        multiplier: 2
+        max-interval: 10s
+      exclude-on-http-codes:
+        - 503
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          model: gemini-3.8-flash
+          temperature: 0.4
+
   datasource:
     url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:fitness_coach}
     username: ${POSTGRES_USER:fitness_app}
