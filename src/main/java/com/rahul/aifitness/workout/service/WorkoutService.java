@@ -19,6 +19,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.rahul.aifitness.event.kafka.KafkaEventPublisher;
+import com.rahul.aifitness.workout.event.WorkoutEvent;
+import com.rahul.aifitness.workout.event.WorkoutEventType;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -29,11 +33,10 @@ public class WorkoutService {
     private final UserRepository userRepository;
     private final WorkoutMapper workoutMapper;
 
+    private final KafkaEventPublisher kafkaEventPublisher;
+
     @Transactional
-    public WorkoutResponse createWorkout(
-            Long userId,
-            CreateWorkoutRequest request
-    ) {
+    public WorkoutResponse createWorkout(Long userId, CreateWorkoutRequest request) {
         log.info(
                 "Creating workout. userId={}, workoutType={}, source={}",
                 userId,
@@ -51,10 +54,7 @@ public class WorkoutService {
 
         String externalId = normalizeExternalId(request.externalId());
 
-        validateExternalIdUniqueness(
-                userId,
-                externalId
-        );
+        validateExternalIdUniqueness(userId, externalId);
 
         CreateWorkoutRequest normalizedRequest = new CreateWorkoutRequest(
                 request.workoutType(),
@@ -78,6 +78,15 @@ public class WorkoutService {
         );
 
         Workout savedWorkout = workoutRepository.save(workout);
+        WorkoutEvent event = new WorkoutEvent(
+                java.util.UUID.randomUUID(),
+                WorkoutEventType.WORKOUT_CREATED,
+                savedWorkout.getId(),
+                userId,
+                java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
+        );
+
+        kafkaEventPublisher.publishWorkoutEvent(event);
 
         log.info(
                 "Workout created successfully. workoutId={}, userId={}",

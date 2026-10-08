@@ -52,11 +52,13 @@ spring:
     producer:
       acks: all
       retries: 5
-
       properties:
         enable.idempotence: true
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
 
     consumer:
+      group-id: fitness-coach
       enable-auto-commit: false
 
       properties:
