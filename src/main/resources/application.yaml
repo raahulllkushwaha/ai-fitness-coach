@@ -60,9 +60,16 @@ spring:
     consumer:
       group-id: fitness-coach
       enable-auto-commit: false
+      value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
 
       properties:
         isolation.level: read_committed
+        "[spring.json.value.default.type]": "com.rahul.aifitness.workout.event.WorkoutEvent"
+        "[spring.json.trusted.packages]": "com.rahul.aifitness.workout.event"
+
+      listener:
+        ack-mode: record
+
 
 
 server:

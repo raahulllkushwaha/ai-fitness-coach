@@ -23,6 +23,10 @@ import com.rahul.aifitness.event.kafka.KafkaEventPublisher;
 import com.rahul.aifitness.workout.event.WorkoutEvent;
 import com.rahul.aifitness.workout.event.WorkoutEventType;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -97,10 +101,7 @@ public class WorkoutService {
         return workoutMapper.toResponse(savedWorkout);
     }
 
-    public WorkoutResponse getWorkoutById(
-            Long userId,
-            Long workoutId
-    ) {
+    public WorkoutResponse getWorkoutById(Long userId, Long workoutId) {
         log.debug(
                 "Fetching workout. workoutId={}, userId={}",
                 workoutId,
@@ -115,9 +116,7 @@ public class WorkoutService {
         return workoutMapper.toResponse(workout);
     }
 
-    public Page<WorkoutResponse> getAllWorkouts(
-            Long userId,
-            Pageable pageable
+    public Page<WorkoutResponse> getAllWorkouts(Long userId, Pageable pageable
     ) {
         log.debug(
                 "Fetching workouts. userId={}, page={}, size={}",
@@ -133,10 +132,7 @@ public class WorkoutService {
                 .map(workoutMapper::toResponse);
     }
 
-    public Page<WorkoutResponse> getWorkoutsByType(
-            Long userId,
-            com.rahul.aifitness.workout.entity.WorkoutType workoutType,
-            Pageable pageable
+    public Page<WorkoutResponse> getWorkoutsByType(Long userId, com.rahul.aifitness.workout.entity.WorkoutType workoutType, Pageable pageable
     ) {
         log.debug(
                 "Fetching workouts by type. userId={}, workoutType={}, page={}, size={}",
@@ -200,11 +196,7 @@ public class WorkoutService {
     }
 
     @Transactional
-    public WorkoutResponse updateWorkout(
-            Long userId,
-            Long workoutId,
-            UpdateWorkoutRequest request
-    ) {
+    public WorkoutResponse updateWorkout(Long userId, Long workoutId, UpdateWorkoutRequest request) {
         log.info(
                 "Updating workout. workoutId={}, userId={}",
                 workoutId,
@@ -256,6 +248,15 @@ public class WorkoutService {
                 workout,
                 normalizedRequest
         );
+        WorkoutEvent event = new WorkoutEvent(
+                UUID.randomUUID(),
+                WorkoutEventType.WORKOUT_UPDATED,
+                workout.getId(),
+                userId,
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+
+        kafkaEventPublisher.publishWorkoutEvent(event);
 
         log.info(
                 "Workout updated successfully. workoutId={}, userId={}",
@@ -283,6 +284,16 @@ public class WorkoutService {
         );
 
         workoutRepository.delete(workout);
+        WorkoutEvent event = new WorkoutEvent(
+                UUID.randomUUID(),
+                WorkoutEventType.WORKOUT_DELETED,
+                workoutId,
+                userId,
+                OffsetDateTime.now(ZoneOffset.UTC)
+        );
+
+        kafkaEventPublisher.publishWorkoutEvent(event);
+
 
         log.info(
                 "Workout deleted successfully. workoutId={}, userId={}",
