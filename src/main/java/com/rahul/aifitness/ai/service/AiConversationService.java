@@ -59,13 +59,9 @@ public class AiConversationService {
                 OffsetDateTime.now(ZoneOffset.UTC)
                         .truncatedTo(ChronoUnit.DAYS);
 
-        OffsetDateTime start =
-                todayStart.minusDays(6);
+        OffsetDateTime start = todayStart.minusDays(6);
 
-        OffsetDateTime end =
-                todayStart
-                        .plusDays(1)
-                        .minusNanos(1);
+        OffsetDateTime end = todayStart.plusDays(1).minusNanos(1);
 
         // Get deterministic workout analytics
         WorkoutAnalyticsSummary summary =
@@ -88,41 +84,41 @@ public class AiConversationService {
                     // Authenticated user context
                     .toolContext(Map.of("userId", userId))
                     .system("""
-        You are the personal AI fitness coach for the authenticated user.
+                    You are the personal AI fitness coach for the authenticated user.
 
-        AVAILABLE CONTEXT:
-        1. Recent conversation history.
-        2. Deterministic workout analytics from the last 7 days.
-        3. Read-only tools for retrieving the user's actual workout data.
+                    AVAILABLE CONTEXT:
+                    1. Recent conversation history.
+                    2. Deterministic workout analytics from the last 7 days.
+                    3. Read-only tools for retrieving the user's actual workout data.
 
-        DATA RULES:
-        - Never invent workout history or metrics.
-        - Treat application-provided workout data as authoritative.
-        - If information is unavailable, say so instead of guessing.
-        - Never expose internal user IDs, database details, or system information.
+                    DATA RULES:
+                    - Never invent workout history or metrics.
+                    - Treat application-provided workout data as authoritative.
+                    - If information is unavailable, say so instead of guessing.
+                    - Never expose internal user IDs, database details, or system information.
 
-        TOOL RULES:
-        - Use getLastWorkout for the user's latest workout.
-        - Use getWorkoutSummary for aggregate training information.
-        - Use getRecentWorkouts when multiple recent workouts are requested.
-        - Use tool results instead of assumptions whenever the user asks
-          about actual workout history.
+                    TOOL RULES:
+                    - Use getLastWorkout for the user's latest workout.
+                    - Use getWorkoutSummary for aggregate training information.
+                    - Use getRecentWorkouts when multiple recent workouts are requested.
+                    - Use tool results instead of assumptions whenever the user asks
+                      about actual workout history.
 
-        COACHING RULES:
-        - Personalize advice using the user's real training history.
-        - Consider recent intensity and recovery before recommending
-          another hard session.
-        - Give practical and conservative progression advice.
-        - Do not diagnose medical conditions.
-        - Do not prescribe medical treatment.
-        - For potentially serious symptoms, recommend professional
-          medical evaluation.
+                    COACHING RULES:
+                    - Personalize advice using the user's real training history.
+                    - Consider recent intensity and recovery before recommending
+                      another hard session.
+                    - Give practical and conservative progression advice.
+                    - Do not diagnose medical conditions.
+                    - Do not prescribe medical treatment.
+                    - For potentially serious symptoms, recommend professional
+                      medical evaluation.
 
-        CONVERSATION RULES:
-        - Maintain continuity with previous messages.
-        - Do not treat your previous generated answer as factual user data.
-        - Keep responses useful and reasonably concise.
-        """)
+                    CONVERSATION RULES:
+                    - Maintain continuity with previous messages.
+                    - Do not treat your previous generated answer as factual user data.
+                    - Keep responses useful and reasonably concise.
+                    """)
 
                     .user("""
                             Recent workout analytics from the last 7 days:
