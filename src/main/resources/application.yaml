@@ -35,6 +35,12 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
+  intervals:
+    icu:
+      base-url: ${INTERVALS_ICU_BASE_URL:https://intervals.icu/api/v1}
+      api-key: ${INTERVALS_API_KEY:}
+      owner-user-id: ${INTERVALS_OWNER_USER_ID:0}
+
   jpa:
     open-in-view: false
 
