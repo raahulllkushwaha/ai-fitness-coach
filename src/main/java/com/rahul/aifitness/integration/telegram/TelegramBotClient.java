@@ -46,7 +46,8 @@ public class TelegramBotClient {
 
         if (!root.path("ok").asBoolean(false)) {
             throw new IllegalStateException(
-                    "Telegram getUpdates request was unsuccessful"
+                    "Telegram getUpdates failed: "
+                            + root.path("description").asText("Unknown Telegram API error")
             );
         }
 
