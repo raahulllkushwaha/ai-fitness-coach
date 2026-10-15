@@ -54,6 +54,12 @@ public class TelegramLinkService {
         );
     }
 
+    public boolean isLinked(Long telegramUserId) {
+        return linkRepository
+                .findByTelegramUserId(telegramUserId)
+                .isPresent();
+    }
+
     @Transactional
     public LinkResult linkAccount(
             Long telegramUserId,
