@@ -1,3 +1,4 @@
+
 name: Backend CI
 
 on:
@@ -9,12 +10,40 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  build-test:
+    name: Build, Test and Package
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Disposable CI-only configuration.
+    # Never use these credentials in production.
+    env:
+      POSTGRES_DB: fitness_coach
+      POSTGRES_USER: fitness_app
+      POSTGRES_PASSWORD: ci_only_postgres_password
+      POSTGRES_PORT: "5432"
+
+      REDIS_PASSWORD: ci_only_redis_password
+      REDIS_PORT: "6379"
+
+      KAFKA_PORT: "9092"
+
+      JWT_SECRET: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+      JWT_EXPIRATION_SECONDS: "3600"
+
+      GEMINI_API_KEY: ci-dummy-gemini-key
+      TELEGRAM_BOT_TOKEN: ci-invalid-telegram-token
+
+      INTERVALS_API_KEY: ""
+      INTERVALS_OWNER_USER_ID: "0"
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v7
 
       - name: Set up Java 21
@@ -24,8 +53,57 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Build and test
-        run: mvn --batch-mode --no-transfer-progress verify
+      - name: Check Docker Compose
+        run: docker compose version
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Start PostgreSQL, Redis and Kafka
+        run: docker compose up -d --wait postgres redis kafka
+
+      - name: Wait for Kafka readiness
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker compose exec -T kafka \
+              /opt/kafka/bin/kafka-topics.sh \
+              --bootstrap-server localhost:9092 \
+              --list >/dev/null 2>&1; then
+              echo "Kafka is ready."
+              exit 0
+            fi
+
+            echo "Waiting for Kafka... attempt ${attempt}/30"
+            sleep 2
+          done
+
+          docker compose logs kafka
+          exit 1
+
+      - name: Show running infrastructure
+        run: docker compose ps
+
+      - name: Build and run tests
+        run: |
+          chmod +x ./mvnw
+          ./mvnw --batch-mode --no-transfer-progress verify
 
       - name: Build Docker image
-        run: docker build -t ai-fitness-coach-backend:ci .
+        run: |
+          if [ ! -f Dockerfile ]; then
+            echo "::error::Dockerfile is missing from the repository root."
+            echo "Commit and push the root-level Dockerfile first."
+            exit 1
+          fi
+
+          docker build --pull \
+            -t ai-fitness-coach-backend:ci .
+
+      - name: Show infrastructure logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=150 || true
+
+      - name: Stop CI infrastructure
+        if: always()
+        run: docker compose down --volumes --remove-orphans

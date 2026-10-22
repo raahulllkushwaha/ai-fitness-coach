@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.rahul.aifitness.analytics.dto.WorkoutAnalyticsSummary;
-
+import com.rahul.aifitness.analytics.dto.AnalyticsBackfillResponse;
+import org.springframework.http.ResponseEntity;
 import java.time.OffsetDateTime;
 
 @RestController
@@ -51,6 +52,23 @@ public class WorkoutAnalyticsController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(summary)
+        );
+    }
+
+    @PostMapping("/analytics/rebuild-missing")
+    public ResponseEntity<ApiResponse<AnalyticsBackfillResponse>>
+    rebuildMissingAnalytics() {
+
+        Long userId = currentUserService.getCurrentUserId();
+
+        AnalyticsBackfillResponse result =
+                workoutAnalyticsService.rebuildMissingAnalytics(userId);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Missing workout analytics rebuilt",
+                        result
+                )
         );
     }
 }

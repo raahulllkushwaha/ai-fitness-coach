@@ -13,7 +13,11 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.cache.annotation.Cacheable;
-
+import com.rahul.aifitness.analytics.dto.AnalyticsBackfillResponse;
+import com.rahul.aifitness.workout.entity.Workout;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
 import com.rahul.aifitness.common.exception.BusinessException;
 import com.rahul.aifitness.workout.entity.WorkoutType;
 import org.springframework.http.HttpStatus;
@@ -30,6 +34,38 @@ public class WorkoutAnalyticsService {
 
     private final WorkoutRepository workoutRepository;
     private final WorkoutAnalyticsRepository workoutAnalyticsRepository;
+
+    @Transactional
+    @CacheEvict(
+            cacheNames = {"analyticsSummary", "aiCoach"},
+            allEntries = true
+    )
+    public AnalyticsBackfillResponse rebuildMissingAnalytics(Long userId) {
+
+        var workouts = workoutRepository
+                .findByUserId(userId, Pageable.unpaged())
+                .getContent();
+
+        int newlyAnalyzed = 0;
+        int alreadyAnalyzed = 0;
+
+        for (Workout workout : workouts) {
+
+            if (workoutAnalyticsRepository.existsByWorkoutId(workout.getId())) {
+                alreadyAnalyzed++;
+                continue;
+            }
+
+            analyzeWorkout(workout.getId());
+            newlyAnalyzed++;
+        }
+
+        return new AnalyticsBackfillResponse(
+                workouts.size(),
+                newlyAnalyzed,
+                alreadyAnalyzed
+        );
+    }
 
     @Caching(evict = {
             @CacheEvict(
