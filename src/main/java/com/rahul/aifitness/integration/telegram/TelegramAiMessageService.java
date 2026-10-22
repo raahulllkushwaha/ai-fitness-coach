@@ -22,36 +22,54 @@ public class TelegramAiMessageService {
             long telegramUserId,
             String text
     ) {
+        if (text == null || text.isBlank() || text.length() > 2000) {
+            telegramBotClient.sendMessage(
+                    chatId,
+                    "Please send a non-empty message under 2000 characters."
+            );
+            return;
+        }
+
+        var accountLink = accountLinkRepository
+                .findByTelegramUserId(telegramUserId);
+
+        if (accountLink.isEmpty()) {
+            telegramBotClient.sendMessage(
+                    chatId,
+                    "Your account is not linked. Use /help for instructions."
+            );
+            return;
+        }
+
+        final long statusMessageId;
+
         try {
-            var accountLink = accountLinkRepository
-                    .findByTelegramUserId(telegramUserId);
+            statusMessageId = telegramBotClient.sendMessageAndGetId(
+                    chatId,
+                    "🧠 Thinking... I'll get back to you shortly."
+            );
+        } catch (Exception exception) {
+            log.warn(
+                    "Could not send Telegram thinking message; errorType={}",
+                    exception.getClass().getSimpleName()
+            );
+            return;
+        }
 
-            if (accountLink.isEmpty()) {
-                telegramBotClient.sendMessage(
-                        chatId,
-                        "Your account is not linked. Use /help for instructions."
-                );
-                return;
-            }
+        try {
+            long startTime = System.currentTimeMillis();
 
-            if (text == null || text.isBlank() || text.length() > 2000) {
-                telegramBotClient.sendMessage(
-                        chatId,
-                        "Please send a non-empty message under 2000 characters."
-                );
-                return;
-            }
+            var response = aiConversationService.chat(
+                    accountLink.get().getUserId(),
+                    text
+            );
 
-            Long userId = accountLink.get().getUserId();
-
-            long aiStartTime = System.currentTimeMillis();
-            log.info("Telegram AI request started: telegramUserId={}", telegramUserId);
-            var response = aiConversationService.chat(userId, text);
+            long durationMs = System.currentTimeMillis() - startTime;
 
             log.info(
-                    "Telegram AI request completed: telegramUserId={}, durationMs={}",
+                    "Telegram AI request completed; telegramUserId={}, durationMs={}",
                     telegramUserId,
-                    System.currentTimeMillis() - aiStartTime
+                    durationMs
             );
 
             String answer = response.message();
@@ -65,25 +83,49 @@ public class TelegramAiMessageService {
                         + "\n\n(Response shortened for Telegram.)";
             }
 
-            telegramBotClient.sendMessage(chatId, answer);
-
-        } catch (Exception exception) {
-            log.warn(
-                    "Telegram AI handling failed; exceptionType={}, message={}",
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+            telegramBotClient.editMessageText(
+                    chatId,
+                    statusMessageId,
+                    answer
             );
 
+        } catch (Exception exception) {
+            String errorMessage = exception.getMessage();
+
+            boolean quotaError = errorMessage != null
+                    && (errorMessage.toLowerCase().contains("quota")
+                    || errorMessage.toLowerCase().contains("rate limit"));
+
+            log.warn(
+                    "Telegram AI request failed; errorType={}, quotaError={}",
+                    exception.getClass().getSimpleName(),
+                    quotaError
+            );
+
+            String userMessage = quotaError
+                    ? """
+                      ⚠️ The AI service quota or rate limit is currently exhausted.
+
+                      I haven't retried the request. Please try again after the quota resets.
+
+                      Your commands such as /lastworkout, /recent and /summary remain available.
+                      """
+                    : """
+                      ⚠️ I couldn't generate an AI response right now.
+
+                      Please try again later. Your fitness commands remain available.
+                      """;
+
             try {
-                telegramBotClient.sendMessage(
+                telegramBotClient.editMessageText(
                         chatId,
-                        "Your AI Coach is temporarily unavailable. "
-                                + "Please try again later."
+                        statusMessageId,
+                        userMessage
                 );
-            } catch (Exception sendException) {
+            } catch (Exception editException) {
                 log.warn(
-                        "Could not send Telegram error response; exceptionType={}",
-                        sendException.getClass().getSimpleName()
+                        "Could not update Telegram status message; errorType={}",
+                        editException.getClass().getSimpleName()
                 );
             }
         }

@@ -236,7 +236,7 @@ public class TelegramUpdatePoller {
                     sendRecentWorkouts(chatId, telegramUserId);
 
             case "/summary", "/stats" ->
-                    sendSummary(chatId, telegramUserId);
+                    sendSummary(chatId, telegramUserId, argument);
 
             case "/link" ->
                     handleLinkCommand(
@@ -399,7 +399,11 @@ public class TelegramUpdatePoller {
         telegramBotClient.sendMessage(chatId, response.toString().trim());
     }
 
-    private void sendSummary(long chatId, long telegramUserId) {
+    private void sendSummary(
+            long chatId,
+            long telegramUserId,
+            String argument
+    ) {
         Optional<Long> userId = findLinkedUserId(telegramUserId);
 
         if (userId.isEmpty()) {
@@ -407,8 +411,26 @@ public class TelegramUpdatePoller {
             return;
         }
 
+        Integer days = parseSummaryDays(argument);
+
+        if (days == null) {
+            telegramBotClient.sendMessage(
+                    chatId,
+                    """
+                    Usage:
+    
+                    /summary       - Last 7 days
+                    /summary 30d   - Last 30 days
+                    /summary 90d   - Last 90 days
+    
+                    You can also use /stats with the same arguments.
+                    """
+            );
+            return;
+        }
+
         OffsetDateTime end = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime start = end.minusDays(7);
+        OffsetDateTime start = end.minusDays(days);
 
         try {
             WorkoutAnalyticsSummary summary =
@@ -419,7 +441,9 @@ public class TelegramUpdatePoller {
                     );
 
             StringBuilder response = new StringBuilder()
-                    .append("📊 Fitness Summary — Last 7 Days\n\n")
+                    .append("📊 Fitness Summary — Last ")
+                    .append(days)
+                    .append(" Days\n\n")
                     .append("Workouts: ")
                     .append(summary.totalWorkouts())
                     .append("\n")
@@ -431,20 +455,17 @@ public class TelegramUpdatePoller {
                     .append("\n")
                     .append("Total calories: ")
                     .append(formatOptionalInteger(
-                            summary.totalCalories(),
-                            " kcal"
+                            summary.totalCalories(), " kcal"
                     ))
                     .append("\n")
                     .append("Average heart rate: ")
                     .append(formatOptionalInteger(
-                            summary.averageHeartRate(),
-                            " bpm"
+                            summary.averageHeartRate(), " bpm"
                     ))
                     .append("\n")
                     .append("Maximum heart rate: ")
                     .append(formatOptionalInteger(
-                            summary.maxHeartRate(),
-                            " bpm"
+                            summary.maxHeartRate(), " bpm"
                     ))
                     .append("\n")
                     .append("Average pace: ")
@@ -484,6 +505,26 @@ public class TelegramUpdatePoller {
         }
     }
 
+    private Integer parseSummaryDays(String argument) {
+        if (argument == null || argument.isBlank()) {
+            return 7;
+        }
+
+        String value = argument.trim().toLowerCase(Locale.ROOT)
+                .replace("days", "")
+                .replace("day", "")
+                .replace("d", "")
+                .trim();
+
+        try {
+            int days = Integer.parseInt(value);
+            return days == 7 || days == 30 || days == 90
+                    ? days
+                    : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
     private void handleLinkCommand(
             long chatId,
             long telegramUserId,

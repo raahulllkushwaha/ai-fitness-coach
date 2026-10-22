@@ -84,6 +84,68 @@ public class TelegramBotClient {
                     "Telegram sendMessage request was unsuccessful"
             );
         }
+
+    }
+
+    public long sendMessageAndGetId(long chatId, String text) {
+        requireToken();
+
+        String response = restClient.post()
+                .uri("/bot" + botToken + "/sendMessage")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "chat_id", chatId,
+                        "text", text
+                ))
+                .retrieve()
+                .body(String.class);
+
+        JsonNode root = parseResponse(response);
+
+        if (!root.path("ok").asBoolean(false)) {
+            throw new IllegalStateException(
+                    "Telegram could not send the status message"
+            );
+        }
+
+        long messageId = root.path("result")
+                .path("message_id")
+                .asLong(-1);
+
+        if (messageId < 0) {
+            throw new IllegalStateException(
+                    "Telegram did not return a message ID"
+            );
+        }
+
+        return messageId;
+    }
+
+    public void editMessageText(
+            long chatId,
+            long messageId,
+            String text
+    ) {
+        requireToken();
+
+        String response = restClient.post()
+                .uri("/bot" + botToken + "/editMessageText")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "chat_id", chatId,
+                        "message_id", messageId,
+                        "text", text
+                ))
+                .retrieve()
+                .body(String.class);
+
+        JsonNode root = parseResponse(response);
+
+        if (!root.path("ok").asBoolean(false)) {
+            throw new IllegalStateException(
+                    "Telegram could not update the status message"
+            );
+        }
     }
 
     private void requireToken() {
