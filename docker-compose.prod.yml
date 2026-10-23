@@ -2,6 +2,14 @@ services:
   postgres:
     image: postgres:18.6
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=2MB
 
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
@@ -71,6 +79,8 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_LOG_DIRS: /var/lib/kafka/data
 
+      KAFKA_HEAP_OPTS: "-Xms128m -Xmx256m"
+
     volumes:
       - kafka_data:/var/lib/kafka/data
 
@@ -87,9 +97,8 @@ services:
 
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ai-fitness-coach-backend:local
+
 
     restart: unless-stopped
     init: true
@@ -104,6 +113,7 @@ services:
 
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC"
 
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?Set POSTGRES_USER}
