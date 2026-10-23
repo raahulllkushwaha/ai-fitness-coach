@@ -1,0 +1,8 @@
+server:
+  forward-headers-strategy: framework
+
+logging:
+  level:
+    root: INFO
+    com.rahul.aifitness: INFO
+    org.springframework.kafka: WARN
