@@ -1,0 +1,11 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+target/
+.idea/
+*.iml
+node_modules/
+dist/
+*.log
