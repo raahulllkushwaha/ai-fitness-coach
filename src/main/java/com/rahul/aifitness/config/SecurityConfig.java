@@ -75,11 +75,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/integrations/intervals-icu/callback"
+                        ).permitAll()
+                        .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/actuator/health"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
+
 
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .formLogin(formLogin -> formLogin.disable())
