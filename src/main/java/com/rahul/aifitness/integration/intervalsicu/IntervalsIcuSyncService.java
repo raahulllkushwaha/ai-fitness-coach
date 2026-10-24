@@ -4,6 +4,8 @@ import com.rahul.aifitness.common.exception.BusinessException;
 import com.rahul.aifitness.common.exception.DuplicateResourceException;
 import com.rahul.aifitness.integration.intervalsicu.dto.IntervalsActivityDto;
 import com.rahul.aifitness.integration.intervalsicu.dto.IntervalsIcuSyncResponse;
+import com.rahul.aifitness.integration.intervalsicu.entity.IntervalsIcuConnection;
+import com.rahul.aifitness.integration.intervalsicu.repository.IntervalsIcuConnectionRepository;
 import com.rahul.aifitness.workout.dto.request.CreateWorkoutRequest;
 import com.rahul.aifitness.workout.entity.WorkoutSource;
 import com.rahul.aifitness.workout.entity.WorkoutType;
@@ -12,10 +14,10 @@ import com.rahul.aifitness.workout.service.WorkoutService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+// import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,9 +38,9 @@ public class IntervalsIcuSyncService {
     private final IntervalsIcuClient intervalsIcuClient;
     private final WorkoutRepository workoutRepository;
     private final WorkoutService workoutService;
+    private final IntervalsIcuConnectionRepository connectionRepository;
+    private final IntervalsTokenEncryptionService tokenEncryptionService;
 
-    @Value("${INTERVALS_OWNER_USER_ID:0}")
-    private Long ownerUserId;
 
     public IntervalsIcuSyncResponse syncActivities(
             Long userId,
@@ -46,11 +48,27 @@ public class IntervalsIcuSyncService {
             LocalDate newest,
             int limit
     ) {
-        validateOwner(userId);
         validateRequest(oldest, newest, limit);
 
+        IntervalsIcuConnection connection =
+                connectionRepository.findByUserId(userId)
+                        .orElseThrow(() -> new BusinessException(
+                                HttpStatus.CONFLICT,
+                                "Intervals.icu account is not connected",
+                                "Connect your Intervals.icu account before syncing activities"
+                        ));
+
+        String accessToken = tokenEncryptionService.decrypt(
+                connection.getEncryptedAccessToken()
+        );
+
         List<IntervalsActivityDto> activities =
-                intervalsIcuClient.fetchActivities(oldest, newest, limit);
+                intervalsIcuClient.fetchActivities(
+                        accessToken,
+                        oldest,
+                        newest,
+                        limit
+                );
 
         int imported = 0;
         int duplicates = 0;
@@ -80,18 +98,19 @@ public class IntervalsIcuSyncService {
                 imported++;
 
             } catch (DuplicateResourceException exception) {
-                // Protect against a duplicate detected by WorkoutService.
                 duplicates++;
 
             } catch (DataIntegrityViolationException exception) {
                 if (isExternalIdConstraintViolation(exception)) {
-                    // A concurrent sync may have inserted the same ID.
                     duplicates++;
                 } else {
                     throw exception;
                 }
             }
         }
+
+        connection.markSynced();
+        connectionRepository.save(connection);
 
         log.info(
                 "Intervals.icu sync completed. userId={}, fetched={}, imported={}, duplicates={}, invalid={}",
@@ -110,24 +129,6 @@ public class IntervalsIcuSyncService {
                 duplicates,
                 invalid
         );
-    }
-
-    private void validateOwner(Long userId) {
-        if (ownerUserId == null || ownerUserId <= 0) {
-            throw new BusinessException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "Configure INTERVALS_OWNER_USER_ID for the account associated with this API key",
-                    "Intervals.icu integration is not configured"
-            );
-        }
-
-        if (!ownerUserId.equals(userId)) {
-            throw new BusinessException(
-                    HttpStatus.FORBIDDEN,
-                    "The configured Intervals.icu personal API key is restricted to its owner account",
-                    "Integration access denied"
-            );
-        }
     }
 
     private void validateRequest(
@@ -182,7 +183,6 @@ public class IntervalsIcuSyncService {
                         ? activity.elapsedTimeSeconds()
                         : durationSeconds;
 
-        // Avoid endedAt being earlier than the duration stored for the workout.
         elapsedSeconds = Math.max(elapsedSeconds, durationSeconds);
 
         OffsetDateTime endedAt = startedAt.plusSeconds(elapsedSeconds);
@@ -225,7 +225,6 @@ public class IntervalsIcuSyncService {
 
         LocalDateTime local = activity.startDateLocal();
 
-        // Fallback only: start_date normally supplies the absolute timestamp.
         return local == null
                 ? null
                 : local.atOffset(ZoneOffset.UTC);
