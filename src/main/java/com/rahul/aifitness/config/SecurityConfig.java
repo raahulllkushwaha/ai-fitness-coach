@@ -101,7 +101,7 @@ public class SecurityConfig {
 
         // React + Vite local development origin
         configuration.setAllowedOrigins(
-                List.of("http://localhost:5173")
+                List.of("http://localhost:5173", "https://ai-fitness-coach-frontend.pages.dev")
         );
 
         configuration.setAllowedMethods(
