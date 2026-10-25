@@ -97,7 +97,7 @@ services:
 
 
   app:
-    image: ai-fitness-coach-backend:local
+    image: ${APP_IMAGE:-ai-fitness-coach-backend:local}
 
 
     restart: unless-stopped
