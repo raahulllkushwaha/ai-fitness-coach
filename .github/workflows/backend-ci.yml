@@ -153,11 +153,23 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [ -z "${AZURE_SSH_KEY:-}" ]; then
+            echo "::error::AZURE_SSH_KEY secret is not configured."
+            exit 1
+          fi
+
+          if [ -z "${AZURE_KNOWN_HOSTS:-}" ]; then
+            echo "::error::AZURE_KNOWN_HOSTS secret is not configured."
+            exit 1
+          fi
+
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$AZURE_SSH_KEY" > ~/.ssh/azure_key
+          printf '%s\n' "$AZURE_SSH_KEY" | tr -d '\r' > ~/.ssh/azure_key
           chmod 600 ~/.ssh/azure_key
 
-          printf '%s\n' "$AZURE_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh-keygen -y -f ~/.ssh/azure_key >/dev/null
+
+          printf '%s\n' "$AZURE_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy on Azure VM
@@ -168,6 +180,16 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
+
+          if [ -z "${AZURE_HOST:-}" ]; then
+            echo "::error::AZURE_HOST secret is not configured."
+            exit 1
+          fi
+
+          if [ -z "${AZURE_USER:-}" ]; then
+            echo "::error::AZURE_USER secret is not configured."
+            exit 1
+          fi
 
           ssh -i ~/.ssh/azure_key \
             -o BatchMode=yes \
