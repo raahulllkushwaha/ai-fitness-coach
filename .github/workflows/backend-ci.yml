@@ -183,7 +183,7 @@ jobs:
           set -euo pipefail
 
           REMOTE_SCRIPT=$(cat <<'REMOTE'
-          set -Eeuo pipefail
+          set -eu
 
           APP_DIR="/home/azureuser/apps/ai-fitness-coach"
           IMAGE="ghcr.io/raahulllkushwaha/ai-fitness-coach-backend:__IMAGE_TAG__"
