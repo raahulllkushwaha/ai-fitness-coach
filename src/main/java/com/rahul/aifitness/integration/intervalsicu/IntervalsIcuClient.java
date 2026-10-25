@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import com.rahul.aifitness.integration.intervalsicu.dto.IntervalsCalendarEventDto;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -95,6 +96,75 @@ public class IntervalsIcuClient {
                     HttpStatus.BAD_GATEWAY,
                     "Intervals.icu is unavailable",
                     "Could not communicate with Intervals.icu"
+            );
+        }
+    }
+    public List<IntervalsCalendarEventDto> fetchPlannedWorkouts(
+            String accessToken,
+            LocalDate oldest,
+            LocalDate newest,
+            int limit
+    ) {
+        if (!StringUtils.hasText(accessToken)) {
+            throw new BusinessException(
+                    HttpStatus.CONFLICT,
+                    "Intervals.icu account is not connected",
+                    "Connect your Intervals.icu account before loading planned workouts"
+            );
+        }
+
+        try {
+            List<IntervalsCalendarEventDto> events = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/athlete/0/events")
+                            .queryParam("oldest", oldest)
+                            .queryParam("newest", newest)
+                            .queryParam("category", "WORKOUT")
+                            .queryParam("limit", limit)
+                            .build())
+                    .headers(headers -> headers.setBearerAuth(accessToken))
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<IntervalsCalendarEventDto>>() {});
+
+            return events == null ? List.of() : events;
+
+        } catch (RestClientResponseException exception) {
+            int status = exception.getStatusCode().value();
+
+            log.warn(
+                    "Intervals.icu calendar API returned HTTP status {}",
+                    status
+            );
+
+            if (status == 401 || status == 403) {
+                throw new BusinessException(
+                        HttpStatus.CONFLICT,
+                        "Intervals.icu calendar permission is missing or invalid",
+                        "Reconnect Intervals.icu and grant CALENDAR:READ permission"
+                );
+            }
+
+            if (status == 429) {
+                throw new BusinessException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "Intervals.icu rate limit reached",
+                        "Please try loading planned workouts later"
+                );
+            }
+
+            throw new BusinessException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Intervals.icu calendar request failed",
+                    "Could not load planned workouts from Intervals.icu"
+            );
+
+        } catch (RestClientException exception) {
+            log.warn("Could not communicate with the Intervals.icu calendar API");
+
+            throw new BusinessException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Intervals.icu is unavailable",
+                    "Could not load planned workouts"
             );
         }
     }

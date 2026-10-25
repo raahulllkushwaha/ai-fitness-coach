@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 import com.rahul.aifitness.integration.intervalsicu.dto.IntervalsIcuConnectionStatusResponse;
 import com.rahul.aifitness.integration.intervalsicu.dto.IntervalsIcuDisconnectResponse;
+import com.rahul.aifitness.integration.intervalsicu.dto.IntervalsCalendarEventDto;
+import java.util.List;
 
 import java.net.URI;
 import java.time.LocalDate;
@@ -30,6 +32,8 @@ public class IntervalsIcuController {
     private final IntervalsIcuOAuthStateService stateService;
     private final IntervalsIcuOAuthService oauthService;
     private final IntervalsIcuConnectionService connectionService;
+
+    private final IntervalsIcuPlannedWorkoutService plannedWorkoutService;
 
     @Value("${INTERVALS_OAUTH_FRONTEND_REDIRECT_URI:https://ai-fitness-coach-frontend.pages.dev/integrations}")
     private String frontendRedirectUri;
@@ -114,6 +118,24 @@ public class IntervalsIcuController {
                         connectionService.disconnect(userId)
                 )
         );
+    }
+
+    @GetMapping("/planned-workouts")
+    public ResponseEntity<ApiResponse<List<IntervalsCalendarEventDto>>>
+    plannedWorkouts(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate oldest,
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate newest,
+
+            @RequestParam(defaultValue = "50")
+            int limit
+    ) {
+        Long userId = currentUserService.getCurrentUserId();
+
+        List<IntervalsCalendarEventDto> events =
+                plannedWorkoutService.getPlannedWorkouts(userId, oldest, newest, limit);
+        return ResponseEntity.ok(
+                ApiResponse.success("Intervals.icu planned workouts retrieved", events));
     }
 
     @PostMapping("/sync")

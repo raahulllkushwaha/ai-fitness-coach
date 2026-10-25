@@ -14,6 +14,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import com.rahul.aifitness.integration.intervalsicu.IntervalsIcuPlannedWorkoutService;
+import com.rahul.aifitness.integration.intervalsicu.dto.IntervalsCalendarEventDto;
+import java.time.LocalDateTime;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -52,6 +55,7 @@ public class TelegramUpdatePoller {
     private final WorkoutRepository workoutRepository;
     private final WorkoutAnalyticsService workoutAnalyticsService;
     private final StringRedisTemplate redisTemplate;
+    private final IntervalsIcuPlannedWorkoutService plannedWorkoutService;
 
     @Scheduled(fixedDelay = 1000)
     public void pollUpdates() {
@@ -191,6 +195,7 @@ public class TelegramUpdatePoller {
                     /lastworkout - View your latest workout
                     /recent - View your last 5 workouts
                     /summary - Last 7 days of fitness stats
+                    /upcoming - Show planned workouts for the next 7 days.
                     /link CODE - Link your account
 
                     Send a normal message to chat with your AI Coach.
@@ -220,6 +225,8 @@ public class TelegramUpdatePoller {
                     /stats
                     Same as /summary.
 
+                    /upcoming - View your planned workouts for the next 7 days
+
                     /link CODE
                     Link your AI Fitness Coach account.
 
@@ -237,6 +244,8 @@ public class TelegramUpdatePoller {
 
             case "/summary", "/stats" ->
                     sendSummary(chatId, telegramUserId, argument);
+
+            case "/upcoming" -> sendUpcomingWorkouts(chatId, telegramUserId);
 
             case "/link" ->
                     handleLinkCommand(
@@ -290,6 +299,133 @@ public class TelegramUpdatePoller {
                 You can use /lastworkout, /recent and /summary.
                 """
         );
+    }
+    private void sendUpcomingWorkouts(
+            long chatId,
+            long telegramUserId
+    ) {
+        Optional<Long> userId = findLinkedUserId(telegramUserId);
+
+        if (userId.isEmpty()) {
+            sendNotLinkedMessage(chatId);
+            return;
+        }
+
+        LocalDate today = LocalDate.now();
+
+        try {
+            List<IntervalsCalendarEventDto> events =
+                    plannedWorkoutService.getPlannedWorkouts(
+                            userId.get(),
+                            today,
+                            today.plusDays(7),
+                            50
+                    );
+
+            if (events.isEmpty()) {
+                telegramBotClient.sendMessage(
+                        chatId,
+                        "📅 No planned workouts found for the next 7 days.\n\n"
+                                + "Check your Intervals.icu calendar or reconnect "
+                                + "with calendar read permission."
+                );
+                return;
+            }
+
+            StringBuilder message = new StringBuilder(
+                    "📅 Your Upcoming Workouts\n\n"
+            );
+
+            for (IntervalsCalendarEventDto event : events) {
+                String name = event.name() == null || event.name().isBlank()
+                        ? "Planned workout"
+                        : event.name();
+
+                message.append("🏋️ ")
+                        .append(name)
+                        .append("\n");
+
+                if (event.type() != null && !event.type().isBlank()) {
+                    message.append("Type: ")
+                            .append(event.type())
+                            .append("\n");
+                }
+
+                message.append("When: ")
+                        .append(formatPlannedDate(event.startDateLocal()))
+                        .append("\n");
+
+                Integer duration = event.timeTargetSeconds() != null
+                        ? event.timeTargetSeconds()
+                        : event.movingTimeSeconds();
+
+                if (duration != null && duration > 0) {
+                    message.append("Duration: ")
+                            .append(formatDuration(duration))
+                            .append("\n");
+                }
+
+                Double distance = event.distanceTargetMeters() != null
+                        ? event.distanceTargetMeters()
+                        : event.distanceMeters();
+
+                if (distance != null && distance > 0) {
+                    message.append("Distance: ")
+                            .append(formatDistance(distance))
+                            .append("\n");
+                }
+
+                if (event.trainingLoad() != null
+                        && event.trainingLoad() > 0) {
+                    message.append("Training load: ")
+                            .append(Math.round(event.trainingLoad()))
+                            .append("\n");
+                }
+
+                message.append("\n");
+            }
+
+            telegramBotClient.sendMessage(
+                    chatId,
+                    message.toString().trim()
+            );
+
+        } catch (Exception exception) {
+            log.warn(
+                    "Telegram upcoming workouts failed: errorType={}",
+                    exception.getClass().getSimpleName()
+            );
+
+            telegramBotClient.sendMessage(
+                    chatId,
+                    "I couldn't load your upcoming workouts right now. "
+                            + "Check your Intervals.icu connection and try again."
+            );
+        }
+    }
+
+    private String formatPlannedDate(String value) {
+        if (value == null || value.isBlank()) {
+            return "Date unavailable";
+        }
+
+        try {
+            return LocalDateTime.parse(value)
+                    .format(DateTimeFormatter.ofPattern(
+                            "EEE, dd MMM 'at' HH:mm",
+                            Locale.ENGLISH
+                    ));
+        } catch (RuntimeException exception) {
+            try {
+                return LocalDate.parse(value.substring(0, 10))
+                        .format(DateTimeFormatter.ofPattern(
+                                "EEE, dd MMM yyyy",
+                                Locale.ENGLISH
+                        ));
+            } catch (RuntimeException ignored) {
+                return value;
+            }
+        }
     }
 
     private void sendLastWorkout(long chatId, long telegramUserId) {
@@ -418,11 +554,11 @@ public class TelegramUpdatePoller {
                     chatId,
                     """
                     Usage:
-    
+
                     /summary       - Last 7 days
                     /summary 30d   - Last 30 days
                     /summary 90d   - Last 90 days
-    
+
                     You can also use /stats with the same arguments.
                     """
             );
