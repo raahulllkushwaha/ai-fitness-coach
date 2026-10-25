@@ -144,92 +144,99 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 15
 
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
-      - name: Configure SSH
+      - name: Validate Azure deployment secrets
         shell: bash
         env:
-          AZURE_SSH_KEY: ${{ secrets.AZURE_SSH_KEY }}
-          AZURE_KNOWN_HOSTS: ${{ secrets.AZURE_KNOWN_HOSTS }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
 
-          if [ -z "${AZURE_SSH_KEY:-}" ]; then
-            echo "::error::AZURE_SSH_KEY secret is not configured."
-            exit 1
-          fi
+          for variable in \
+            AZURE_CLIENT_ID \
+            AZURE_TENANT_ID \
+            AZURE_SUBSCRIPTION_ID; do
+            if [ -z "${!variable:-}" ]; then
+              echo "::error::$variable secret is not configured."
+              exit 1
+            fi
+          done
 
-          if [ -z "${AZURE_KNOWN_HOSTS:-}" ]; then
-            echo "::error::AZURE_KNOWN_HOSTS secret is not configured."
-            exit 1
-          fi
+      - name: Login to Azure using OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$AZURE_SSH_KEY" | tr -d '\r' > ~/.ssh/azure_key
-          chmod 600 ~/.ssh/azure_key
-
-          ssh-keygen -y -f ~/.ssh/azure_key >/dev/null
-
-          printf '%s\n' "$AZURE_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Deploy on Azure VM
+      - name: Deploy using Azure VM Run Command
         shell: bash
         env:
-          AZURE_HOST: ${{ secrets.AZURE_HOST }}
-          AZURE_USER: ${{ secrets.AZURE_USER }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          if [ -z "${AZURE_HOST:-}" ]; then
-            echo "::error::AZURE_HOST secret is not configured."
-            exit 1
-          fi
+          REMOTE_SCRIPT=$(cat <<'REMOTE'
+          set -Eeuo pipefail
 
-          if [ -z "${AZURE_USER:-}" ]; then
-            echo "::error::AZURE_USER secret is not configured."
-            exit 1
-          fi
+          APP_DIR="/home/azureuser/apps/ai-fitness-coach"
+          IMAGE="ghcr.io/raahulllkushwaha/ai-fitness-coach-backend:__IMAGE_TAG__"
 
-          ssh -i ~/.ssh/azure_key \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            "$AZURE_USER@$AZURE_HOST" \
-            "bash -s -- '$IMAGE_TAG'" <<'REMOTE'
-          set -euo pipefail
+          cd "$APP_DIR"
 
-          IMAGE_TAG="$1"
-          IMAGE="ghcr.io/raahulllkushwaha/ai-fitness-coach-backend:${IMAGE_TAG}"
+          runuser -u azureuser -- \
+            env HOME=/home/azureuser \
+            git -C "$APP_DIR" pull --ff-only origin main
 
-          cd /home/azureuser/apps/ai-fitness-coach
+          export APP_IMAGE="$IMAGE"
 
-          git pull --ff-only origin main
+          docker compose -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.prod.yml pull app
 
-          sudo env APP_IMAGE="$IMAGE" \
-            docker compose -f docker-compose.prod.yml config --quiet
-
-          sudo env APP_IMAGE="$IMAGE" \
-            docker compose -f docker-compose.prod.yml pull app
-
-          sudo env APP_IMAGE="$IMAGE" \
-            docker compose -f docker-compose.prod.yml up -d \
+          docker compose -f docker-compose.prod.yml up -d \
             --no-deps --force-recreate app
 
-          for attempt in $(seq 1 36); do
+          for attempt in $(seq 1 48); do
             if curl -fsS --max-time 5 \
-              http://127.0.0.1:8080/actuator/health \
+              http://127.0.0.1:8080/actuator/health 2>/dev/null \
               | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
-              echo "Deployment successful: app is healthy."
+              echo "DEPLOYMENT_SUCCESS"
               exit 0
             fi
 
-            echo "Waiting for application health... ${attempt}/36"
+            echo "Waiting for application health: ${attempt}/48"
             sleep 5
           done
 
-          sudo docker compose -f docker-compose.prod.yml logs \
+          docker compose -f docker-compose.prod.yml logs \
             --tail=100 app || true
 
-          echo "Deployment failed: application did not become healthy."
+          echo "DEPLOYMENT_FAILED"
           exit 1
           REMOTE
+          )
+
+          REMOTE_SCRIPT="${REMOTE_SCRIPT//__IMAGE_TAG__/$IMAGE_TAG}"
+
+          OUTPUT="$(az vm run-command invoke \
+            --resource-group rg-ai-fitness-coach \
+            --name ai-fitness-coach-vm \
+            --command-id RunShellScript \
+            --scripts "$REMOTE_SCRIPT" \
+            --query 'value[].message' \
+            --output tsv)"
+
+          printf '%s\n' "$OUTPUT"
+
+          if ! grep -q "DEPLOYMENT_SUCCESS" <<< "$OUTPUT"; then
+            echo "::error::Azure deployment or health check failed."
+            exit 1
+          fi
+
+          echo "Azure deployment completed successfully."          echo "Azure deployment completed successfully."
