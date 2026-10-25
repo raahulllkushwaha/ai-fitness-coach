@@ -125,11 +125,16 @@ public class IntervalsIcuOAuthService {
                         && Arrays.stream(scopes.split("[,\\s]+"))
                         .anyMatch("ACTIVITY:READ"::equals);
 
-        if (!activityReadGranted) {
+        boolean calendarReadGranted =
+                StringUtils.hasText(scopes)
+                        && Arrays.stream(scopes.split("[,\\s]+"))
+                        .anyMatch("CALENDAR:READ"::equals);
+
+        if (!activityReadGranted || !calendarReadGranted) {
             throw new BusinessException(
                     HttpStatus.FORBIDDEN,
-                    "Activity permission not granted",
-                    "Please reconnect and grant ACTIVITY:READ permission"
+                    "Required Intervals.icu permissions not granted",
+                    "Please reconnect and grant ACTIVITY:READ and CALENDAR:READ permissions"
             );
         }
 
