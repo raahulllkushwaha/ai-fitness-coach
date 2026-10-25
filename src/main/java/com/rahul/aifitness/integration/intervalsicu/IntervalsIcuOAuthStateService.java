@@ -26,7 +26,7 @@ public class IntervalsIcuOAuthStateService {
     private static final String AUTHORIZE_URL =
             "https://intervals.icu/oauth/authorize";
 
-    private static final String REQUIRED_SCOPE = "ACTIVITY:READ CALENDAR:READ";
+    private static final String REQUIRED_SCOPE = "ACTIVITY:READ,CALENDAR:READ";
 
     private final StringRedisTemplate redisTemplate;
     private final String clientId;
