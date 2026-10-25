@@ -1,5 +1,4 @@
-
-name: Backend CI
+name: Backend CI/CD
 
 on:
   push:
@@ -20,8 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    # Disposable CI-only configuration.
-    # Never use these credentials in production.
     env:
       POSTGRES_DB: fitness_coach
       POSTGRES_USER: fitness_app
@@ -93,7 +90,6 @@ jobs:
         run: |
           if [ ! -f Dockerfile ]; then
             echo "::error::Dockerfile is missing from the repository root."
-            echo "Commit and push the root-level Dockerfile first."
             exit 1
           fi
 
@@ -107,3 +103,111 @@ jobs:
       - name: Stop CI infrastructure
         if: always()
         run: docker compose down --volumes --remove-orphans
+
+  publish-image:
+    name: Publish production Docker image
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/raahulllkushwaha/ai-fitness-coach-backend:latest
+            ghcr.io/raahulllkushwaha/ai-fitness-coach-backend:${{ github.sha }}
+
+  deploy-production:
+    name: Deploy to Azure VM
+    runs-on: ubuntu-latest
+    needs: publish-image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          AZURE_SSH_KEY: ${{ secrets.AZURE_SSH_KEY }}
+          AZURE_KNOWN_HOSTS: ${{ secrets.AZURE_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$AZURE_SSH_KEY" > ~/.ssh/azure_key
+          chmod 600 ~/.ssh/azure_key
+
+          printf '%s\n' "$AZURE_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy on Azure VM
+        shell: bash
+        env:
+          AZURE_HOST: ${{ secrets.AZURE_HOST }}
+          AZURE_USER: ${{ secrets.AZURE_USER }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/azure_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$AZURE_USER@$AZURE_HOST" \
+            "bash -s -- '$IMAGE_TAG'" <<'REMOTE'
+          set -euo pipefail
+
+          IMAGE_TAG="$1"
+          IMAGE="ghcr.io/raahulllkushwaha/ai-fitness-coach-backend:${IMAGE_TAG}"
+
+          cd /home/azureuser/apps/ai-fitness-coach
+
+          git pull --ff-only origin main
+
+          sudo env APP_IMAGE="$IMAGE" \
+            docker compose -f docker-compose.prod.yml config --quiet
+
+          sudo env APP_IMAGE="$IMAGE" \
+            docker compose -f docker-compose.prod.yml pull app
+
+          sudo env APP_IMAGE="$IMAGE" \
+            docker compose -f docker-compose.prod.yml up -d \
+            --no-deps --force-recreate app
+
+          for attempt in $(seq 1 36); do
+            if curl -fsS --max-time 5 \
+              http://127.0.0.1:8080/actuator/health \
+              | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
+              echo "Deployment successful: app is healthy."
+              exit 0
+            fi
+
+            echo "Waiting for application health... ${attempt}/36"
+            sleep 5
+          done
+
+          sudo docker compose -f docker-compose.prod.yml logs \
+            --tail=100 app || true
+
+          echo "Deployment failed: application did not become healthy."
+          exit 1
+          REMOTE
